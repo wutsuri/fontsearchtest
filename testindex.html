@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>波霰（なみあられ）収録文字検索＆一覧</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; color: #333; }
+    h1, h2, h3 { text-align: center; }
+    
+    /* 検索セクションのスタイル */
+    .search-section { text-align: center; margin-bottom: 40px; padding: 20px; background: #f0f4f8; border-radius: 8px; }
+    input[type="text"] { width: 60%; padding: 15px; font-size: 18px; border-radius: 8px; border: 1px solid #ccc; margin-bottom: 20px; }
+    #searchResult { min-height: 80px; }
+    
+    /* ステータスバッジとボタン */
+    .status-badge { display: inline-block; padding: 5px 10px; border-radius: 4px; color: #fff; font-size: 14px; margin-bottom: 10px; }
+    .implemented { background: #4CAF50; }
+    .planned { background: #FF9800; }
+    .none { background: #9E9E9E; }
+    .booth-btn { display: inline-block; margin-top: 15px; padding: 10px 20px; background: #fc4d50; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }
+
+    /* 一覧リストのスタイル（2000文字対応のグリッド） */
+    .list-section { margin-top: 40px; }
+    .char-grid { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); 
+      gap: 5px; 
+      margin-bottom: 30px;
+    }
+    .char-box {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 10px 0;
+      text-align: center;
+      font-size: 20px;
+      background: #fff;
+    }
+    /* 予定文字は少しデザインを変える */
+    .planned-box { background: #fff8e1; border-color: #ffe082; color: #795548; }
+  </style>
+</head>
+<body>
+
+  <h1>波霰 収録文字一覧・検索</h1>
+
+  <div class="search-section">
+    <p>探したい文字を1文字入力してください</p>
+    <input type="text" id="searchInput" maxlength="1" placeholder="例: 波">
+    
+    <div id="searchResult">
+      <p style="color: #666;">ここに検索結果が表示されます</p>
+    </div>
+  </div>
+
+  <div class="list-section">
+    <h3>収録済みの文字</h3>
+    <div id="implementedList" class="char-grid">
+      </div>
+
+    <h3>次回アップデートで追加予定の文字</h3>
+    <div id="plannedList" class="char-grid">
+      </div>
+  </div>
+
+  <script>
+    let fontData = [];
+
+    // JSONデータを読み込む
+    fetch('data.json')
+      .then(response => response.json())
+      .then(data => { 
+        fontData = data; 
+        renderLists(); // データ読み込み後に一覧を描画
+      });
+
+    // ▼▼ 検索機能の処理 ▼▼
+    const searchInput = document.getElementById('searchInput');
+    const searchResult = document.getElementById('searchResult');
+
+    searchInput.addEventListener('input', (e) => {
+      const char = e.target.value;
+      if (!char) {
+        searchResult.innerHTML = '<p style="color: #666;">ここに検索結果が表示されます</p>';
+        return;
+      }
+
+      const found = fontData.find(item => item.char === char);
+
+      if (found) {
+        if (found.status === 'implemented') {
+          searchResult.innerHTML = `<span class="status-badge implemented">収録済み</span><h2 style="margin:5px 0;">${found.char}</h2><p style="margin:0;">${found.note}</p>`;
+        } else if (found.status === 'planned') {
+          searchResult.innerHTML = `<span class="status-badge planned">追加予定</span><h2 style="margin:5px 0;">${found.char}</h2><p style="margin:0;">${found.note}</p>`;
+        }
+      } else {
+        searchResult.innerHTML = `
+          <span class="status-badge none">未収録・追加未定</span>
+          <h2 style="margin:5px 0;">${char}</h2>
+          <a href="【ここにBOOTHの商品URLを貼る】" class="booth-btn" target="_blank">BOOTHで追加リクエストをする</a>
+        `;
+      }
+    });
+
+    // ▼▼ 一覧表示機能の処理 ▼▼
+    function renderLists() {
+      const implementedContainer = document.getElementById('implementedList');
+      const plannedContainer = document.getElementById('plannedList');
+
+      // 収録済みの文字を抽出してHTMLを作成
+      const implementedChars = fontData.filter(item => item.status === 'implemented');
+      implementedContainer.innerHTML = implementedChars.map(item => 
+        `<div class="char-box">${item.char}</div>`
+      ).join('');
+
+      // 追加予定の文字を抽出してHTMLを作成
+      const plannedChars = fontData.filter(item => item.status === 'planned');
+      plannedContainer.innerHTML = plannedChars.map(item => 
+        `<div class="char-box planned-box">${item.char}</div>`
+      ).join('');
+    }
+  </script>
+
+</body>
+</html>
