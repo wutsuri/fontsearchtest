@@ -6,21 +6,18 @@
   <title>波霰（なみあられ）収録文字検索＆一覧</title>
   <style>
     body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; color: #333; }
-    h1, h2, h3 { text-align: center; }
+    h1, h2, h3, h4 { text-align: center; }
     
     /* 検索セクションのスタイル */
     .search-section { text-align: center; margin-bottom: 40px; padding: 20px; background: #f0f4f8; border-radius: 8px; }
-    input[type="text"] { width: 60%; padding: 15px; font-size: 18px; border-radius: 8px; border: 1px solid #ccc; margin-bottom: 20px; }
-    #searchResult { min-height: 80px; }
+    textarea { width: 80%; padding: 15px; font-size: 18px; border-radius: 8px; border: 1px solid #ccc; margin-bottom: 20px; resize: vertical; }
+    #searchResult { min-height: 80px; text-align: left; padding: 10px 20px; }
     
-    /* ステータスバッジとボタン */
-    .status-badge { display: inline-block; padding: 5px 10px; border-radius: 4px; color: #fff; font-size: 14px; margin-bottom: 10px; }
-    .implemented { background: #4CAF50; }
-    .planned { background: #FF9800; }
-    .none { background: #9E9E9E; }
-    .booth-btn { display: inline-block; margin-top: 15px; padding: 10px 20px; background: #fc4d50; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }
+    /* ステータスとボタン */
+    .booth-btn { display: block; width: fit-content; margin: 20px auto 0; padding: 10px 20px; background: #fc4d50; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; text-align: center; }
+    .success-msg { background: #e8f5e9; padding: 15px; border-radius: 5px; color: #2e7d32; font-weight: bold; text-align: center; margin-bottom: 15px; }
 
-    /* 一覧リストのスタイル（2000文字対応のグリッド） */
+    /* 一覧リストのスタイル（グリッド） */
     .list-section { margin-top: 40px; }
     .char-grid { 
       display: grid; 
@@ -36,8 +33,9 @@
       font-size: 20px;
       background: #fff;
     }
-    /* 予定文字は少しデザインを変える */
+    /* ステータス別の色分け */
     .planned-box { background: #fff8e1; border-color: #ffe082; color: #795548; }
+    .missing-box { background: #ffebee; border-color: #ffcdd2; color: #c62828; }
   </style>
 </head>
 <body>
@@ -45,22 +43,24 @@
   <h1>波霰 収録文字一覧・検索</h1>
 
   <div class="search-section">
-    <p>探したい文字を1文字入力してください</p>
-    <input type="text" id="searchInput" maxlength="1" placeholder="例: 波">
+    <p>判定したい文章を入力またはペーストしてください</p>
+    <textarea id="searchInput" rows="3" placeholder="例: 波霰フォントのテスト文章です。"></textarea>
     
     <div id="searchResult">
-      <p style="color: #666;">ここに検索結果が表示されます</p>
+      <p style="color: #666; text-align: center;">ここに判定結果が表示されます</p>
     </div>
   </div>
 
-  <div class="list-section">
-    <h3>収録済みの文字</h3>
-    <div id="implementedList" class="char-grid">
-      </div>
+  <hr style="border: none; border-top: 1px solid #eee; margin: 40px 0;">
 
-    <h3>次回アップデートで追加予定の文字</h3>
-    <div id="plannedList" class="char-grid">
-      </div>
+  <div class="list-section">
+    <h3>全収録文字一覧</h3>
+    
+    <h4>収録済みの文字</h4>
+    <div id="implementedList" class="char-grid"></div>
+
+    <h4>次回アップデートで追加予定の文字</h4>
+    <div id="plannedList" class="char-grid"></div>
   </div>
 
   <script>
@@ -71,35 +71,69 @@
       .then(response => response.json())
       .then(data => { 
         fontData = data; 
-        renderLists(); // データ読み込み後に一覧を描画
+        renderLists(); 
       });
 
-    // ▼▼ 検索機能の処理 ▼▼
+    // ▼▼ 文章判定機能の処理 ▼▼
     const searchInput = document.getElementById('searchInput');
     const searchResult = document.getElementById('searchResult');
 
     searchInput.addEventListener('input', (e) => {
-      const char = e.target.value;
-      if (!char) {
-        searchResult.innerHTML = '<p style="color: #666;">ここに検索結果が表示されます</p>';
+      const text = e.target.value;
+      
+      // 入力が空、またはスペースだけの場合は初期表示に戻す
+      if (!text.trim()) {
+        searchResult.innerHTML = '<p style="color: #666; text-align: center;">ここに判定結果が表示されます</p>';
         return;
       }
 
-      const found = fontData.find(item => item.char === char);
+      // 入力された文章を1文字ずつに分解し、重複と空白(スペース・改行)を削除する
+      const uniqueChars = Array.from(new Set(text)).filter(c => !/\\s/.test(c) && c !== ' ' && c !== '　' && c !== '\\n');
 
-      if (found) {
-        if (found.status === 'implemented') {
-          searchResult.innerHTML = `<span class="status-badge implemented">収録済み</span><h2 style="margin:5px 0;">${found.char}</h2><p style="margin:0;">${found.note}</p>`;
-        } else if (found.status === 'planned') {
-          searchResult.innerHTML = `<span class="status-badge planned">追加予定</span><h2 style="margin:5px 0;">${found.char}</h2><p style="margin:0;">${found.note}</p>`;
+      const implemented = [];
+      const planned = [];
+      const missing = [];
+
+      // 各文字のステータスを判定して配列に振り分ける
+      uniqueChars.forEach(char => {
+        const found = fontData.find(item => item.char === char);
+        if (found) {
+          if (found.status === 'implemented') implemented.push(char);
+          else if (found.status === 'planned') planned.push(char);
+        } else {
+          missing.push(char);
         }
-      } else {
-        searchResult.innerHTML = `
-          <span class="status-badge none">未収録・追加未定</span>
-          <h2 style="margin:5px 0;">${char}</h2>
-          <a href="【ここにBOOTHの商品URLを貼る】" class="booth-btn" target="_blank">BOOTHで追加リクエストをする</a>
-        `;
+      });
+
+      // 判定結果のHTMLを組み立てる
+      let html = '';
+
+      // すべて収録されている場合のお祝いメッセージ
+      if (missing.length === 0 && planned.length === 0) {
+        html += `<div class="success-msg">✨ 入力された文章の文字は、すべて収録されています！</div>`;
       }
+
+      // 未収録の文字がある場合
+      if (missing.length > 0) {
+        html += `<h4>❌ 以下の文字は未収録です</h4>`;
+        html += `<div class="char-grid">` + missing.map(c => `<div class="char-box missing-box">${c}</div>`).join('') + `</div>`;
+        html += `<a href="【ここにBOOTHの商品URLを貼る】" class="booth-btn" target="_blank">BOOTHでこの文字のリクエストをする</a>`;
+        html += `<hr style="margin: 30px 0; border: none; border-top: 1px dashed #ccc;">`;
+      }
+
+      // 収録済みの文字がある場合
+      if (implemented.length > 0) {
+        html += `<h4>✅ 収録済みの文字</h4>`;
+        html += `<div class="char-grid">` + implemented.map(c => `<div class="char-box">${c}</div>`).join('') + `</div>`;
+      }
+
+      // 追加予定の文字がある場合
+      if (planned.length > 0) {
+        html += `<h4>⏳ 次回追加予定の文字</h4>`;
+        html += `<div class="char-grid">` + planned.map(c => `<div class="char-box planned-box">${c}</div>`).join('') + `</div>`;
+      }
+
+      searchResult.innerHTML = html;
     });
 
     // ▼▼ 一覧表示機能の処理 ▼▼
@@ -107,13 +141,11 @@
       const implementedContainer = document.getElementById('implementedList');
       const plannedContainer = document.getElementById('plannedList');
 
-      // 収録済みの文字を抽出してHTMLを作成
       const implementedChars = fontData.filter(item => item.status === 'implemented');
       implementedContainer.innerHTML = implementedChars.map(item => 
         `<div class="char-box">${item.char}</div>`
       ).join('');
 
-      // 追加予定の文字を抽出してHTMLを作成
       const plannedChars = fontData.filter(item => item.status === 'planned');
       plannedContainer.innerHTML = plannedChars.map(item => 
         `<div class="char-box planned-box">${item.char}</div>`
