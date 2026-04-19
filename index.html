@@ -17,25 +17,23 @@
     .booth-btn { display: block; width: fit-content; margin: 20px auto 0; padding: 10px 20px; background: #fc4d50; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; text-align: center; }
     .success-msg { background: #e8f5e9; padding: 15px; border-radius: 5px; color: #2e7d32; font-weight: bold; text-align: center; margin-bottom: 15px; }
 
-    /* 一覧リストのスタイル（グリッド） */
+    /* 文字が連続して並ぶブロックのスタイル */
     .list-section { margin-top: 40px; }
-    .char-grid { 
-      display: grid; 
-      grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); 
-      gap: 5px; 
-      margin-bottom: 30px;
-    }
-    .char-box {
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 10px 0;
-      text-align: center;
+    .text-block {
       font-size: 20px;
+      line-height: 1.8;
+      letter-spacing: 2px; /* 文字同士がくっつきすぎないように少し隙間を空ける */
+      word-break: break-all; /* 画面端で強制的に折り返す */
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      border: 1px solid #ddd;
       background: #fff;
     }
-    /* ステータス別の色分け */
-    .planned-box { background: #fff8e1; border-color: #ffe082; color: #795548; }
-    .missing-box { background: #ffebee; border-color: #ffcdd2; color: #c62828; }
+    
+    /* ステータス別の色分け（ブロック全体の色を変える） */
+    .planned-block { background: #fff8e1; border-color: #ffe082; color: #795548; }
+    .missing-block { background: #ffebee; border-color: #ffcdd2; color: #c62828; }
   </style>
 </head>
 <body>
@@ -57,10 +55,10 @@
     <h3>全収録文字一覧</h3>
     
     <h4>収録済みの文字</h4>
-    <div id="implementedList" class="char-grid"></div>
+    <div id="implementedList"></div>
 
     <h4>次回アップデートで追加予定の文字</h4>
-    <div id="plannedList" class="char-grid"></div>
+    <div id="plannedList"></div>
   </div>
 
   <script>
@@ -81,20 +79,17 @@
     searchInput.addEventListener('input', (e) => {
       const text = e.target.value;
       
-      // 入力が空、またはスペースだけの場合は初期表示に戻す
       if (!text.trim()) {
         searchResult.innerHTML = '<p style="color: #666; text-align: center;">ここに判定結果が表示されます</p>';
         return;
       }
 
-      // 入力された文章を1文字ずつに分解し、重複と空白(スペース・改行)を削除する
-      const uniqueChars = Array.from(new Set(text)).filter(c => !/\\s/.test(c) && c !== ' ' && c !== '　' && c !== '\\n');
+      const uniqueChars = Array.from(new Set(text)).filter(c => !/\s/.test(c) && c !== ' ' && c !== '　' && c !== '\n');
 
       const implemented = [];
       const planned = [];
       const missing = [];
 
-      // 各文字のステータスを判定して配列に振り分ける
       uniqueChars.forEach(char => {
         const found = fontData.find(item => item.char === char);
         if (found) {
@@ -105,32 +100,28 @@
         }
       });
 
-      // 判定結果のHTMLを組み立てる
       let html = '';
 
-      // すべて収録されている場合のお祝いメッセージ
       if (missing.length === 0 && planned.length === 0) {
         html += `<div class="success-msg">✨ 入力された文章の文字は、すべて収録されています！</div>`;
       }
 
-      // 未収録の文字がある場合
       if (missing.length > 0) {
         html += `<h4>❌ 以下の文字は未収録です</h4>`;
-        html += `<div class="char-grid">` + missing.map(c => `<div class="char-box missing-box">${c}</div>`).join('') + `</div>`;
+        // 配列を結合して連続した文字列として表示
+        html += `<div class="text-block missing-block">${missing.join('')}</div>`;
         html += `<a href="【ここにBOOTHの商品URLを貼る】" class="booth-btn" target="_blank">BOOTHでこの文字のリクエストをする</a>`;
         html += `<hr style="margin: 30px 0; border: none; border-top: 1px dashed #ccc;">`;
       }
 
-      // 収録済みの文字がある場合
       if (implemented.length > 0) {
         html += `<h4>✅ 収録済みの文字</h4>`;
-        html += `<div class="char-grid">` + implemented.map(c => `<div class="char-box">${c}</div>`).join('') + `</div>`;
+        html += `<div class="text-block">${implemented.join('')}</div>`;
       }
 
-      // 追加予定の文字がある場合
       if (planned.length > 0) {
         html += `<h4>⏳ 次回追加予定の文字</h4>`;
-        html += `<div class="char-grid">` + planned.map(c => `<div class="char-box planned-box">${c}</div>`).join('') + `</div>`;
+        html += `<div class="text-block planned-block">${planned.join('')}</div>`;
       }
 
       searchResult.innerHTML = html;
@@ -142,14 +133,15 @@
       const plannedContainer = document.getElementById('plannedList');
 
       const implementedChars = fontData.filter(item => item.status === 'implemented');
-      implementedContainer.innerHTML = implementedChars.map(item => 
-        `<div class="char-box">${item.char}</div>`
-      ).join('');
+      // マス目を作らず、文字だけを繋げて表示する
+      if (implementedChars.length > 0) {
+        implementedContainer.innerHTML = `<div class="text-block">${implementedChars.map(item => item.char).join('')}</div>`;
+      }
 
       const plannedChars = fontData.filter(item => item.status === 'planned');
-      plannedContainer.innerHTML = plannedChars.map(item => 
-        `<div class="char-box planned-box">${item.char}</div>`
-      ).join('');
+      if (plannedChars.length > 0) {
+        plannedContainer.innerHTML = `<div class="text-block planned-block">${plannedChars.map(item => item.char).join('')}</div>`;
+      }
     }
   </script>
 
